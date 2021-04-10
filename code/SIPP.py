@@ -1,7 +1,7 @@
 import heapq
 
 def move(loc, dir):
-    directions = [(0, -1), (1, 0), (0, 1), (-1, 0), (0, 0)]     # add wait direction
+    directions = [(0, -1), (1, 0), (0, 1), (-1, 0)]     # add wait direction
     return loc[0] + directions[dir][0], loc[1] + directions[dir][1]
 
 
@@ -162,92 +162,6 @@ def compare_nodes(n1, n2):
     return n1['g_val'] + n1['h_val'] < n2['g_val'] + n2['h_val']
 
 
-def a_star(my_map, start_loc, goal_loc, h_values, agent, constraints):
-    """ my_map      - binary obstacle map
-        start_loc   - start position
-        goal_loc    - goal position
-        agent       - the agent that is being re-planned
-        constraints - constraints defining where robot should or cannot go at each timestep
-    """
-
-    ##############################
-    # Task 1.1: Extend the A* search to search in the space-time domain
-    #           rather than space domain, only.
-
-    open_list = []
-    closed_list = dict()
-
-    # the goal location is not connect to the start location: No solution!
-    if start_loc not in h_values.keys():
-        return None
-    h_value = h_values[start_loc]   
-
-    # Task 1.2 add constraint_table 
-    constraint_table = build_constraint_table(constraints, agent)
-
-    max_time = 0
-    if len(constraint_table.keys()) > 0:
-        max_time = max(constraint_table.keys())
-
-    root = {'loc': start_loc, 'g_val': 0, 'h_val': h_value, 'parent': None, 'timestep': 0}
-    push_node(open_list, root)
-    closed_list[(root['loc'], 0)] = root
-
-    # add time limit to avoid infinite loop
-    possible_agent_number = 0
-    for row in my_map:
-        for col in row:
-            if col != '@':
-                possible_agent_number += 1
-    time_limit = (possible_agent_number-1)*possible_agent_number
-    # Prioritized planning time limit
-    #time_limit = len(constraints) + len(my_map)*len(my_map[0]) 
-
-    while len(open_list) > 0 and time_limit > 0:
-        curr = pop_node(open_list)
-        #############################
-        # Task 1.4: Adjust the goal test condition to handle goal constraints
-        if curr['loc'] == goal_loc and curr['timestep'] >= max_time:
-            return get_path(curr)
-
-        # expand curr node 
-        for dir in range(5):                                # add wait direction to range 5
-            child_loc = move(curr['loc'], dir)
-
-            # set boudary constraint 
-            if child_loc[0] < 0 or child_loc[1] < 0 or child_loc[0] >= len(my_map) or child_loc[1] >= len(my_map[0]): 
-                continue
-            # encounter a block
-            if my_map[child_loc[0]][child_loc[1]]:          # the position is True meaning '@': invalid movement
-                continue
-
-            child = {'loc': child_loc,
-                    'g_val': curr['g_val'] + 1,
-                    'h_val': h_values[child_loc],
-                    'parent': curr,
-                    'timestep': curr['timestep'] + 1}
-
-            # Task 1.2 check constraint, if doesn't satisfied just prune it
-            if not is_constrained(curr['loc'], child['loc'], child['timestep'], constraint_table):
-                continue
-
-            # expand the old(in closed list) child if with smaller f-val        
-            if (child['loc'], child['timestep']) in closed_list:
-                existing_node = closed_list[(child['loc'], child['timestep'])]
-                if compare_nodes(child, existing_node):                        
-                    closed_list[(child['loc'], child['timestep'])] = child     
-                    push_node(open_list, child) 
-
-            # expand the child if it isn't in closed list                          
-            else:
-                closed_list[(child['loc'], child['timestep'])] = child
-                push_node(open_list, child)
-
-        time_limit -= 1
-
-    return None  # Failed to find solutions
-
-
 # combine two safe intervals
 def combine_two(I1, I2):
     result = []
@@ -326,8 +240,52 @@ def get_safe_interval(cfg, obstacles):
             each_safe_interval.append(temp)
 
     result_interval = combine_intervals(each_safe_interval)
+    result_interval.sort(key=lambda x:x[0])		# sort the intervals
 
     return result_interval
+
+
+# set time limit
+def set_time_limit(my_map)
+    possible_agent_number = 0
+    for row in my_map:
+        for col in row:
+            if col != '@':
+                possible_agent_number += 1
+    time_limit = (possible_agent_number-1)*possible_agent_number
+
+    return time_limit
+
+
+# earliest arrival time at cfg during interval i with no collisions
+def find_earliest_arrival(safe_interval, ):
+
+
+# expand node to get all valid successors
+def get_successors(curr, my_map, obstacles):
+	successors = []
+
+	for dir in range(4):
+		cfg = move(curr['loc'], dir)
+
+		# set boudary constraint 
+		if child_loc[0] < 0 or child_loc[1] < 0 or child_loc[0] >= len(my_map) or child_loc[1] >= len(my_map[0]): 
+			continue
+		# encounter a block
+		if my_map[child_loc[0]][child_loc[1]]:          # the position is True meaning '@': invalid movement
+        	continue
+
+        start_t = curr['timestep'] + 1		# the m_time is alwasy 1
+        end_t = curr['safe_interval'][1] + 1
+
+        # all safe inervals in cfg
+        cfg_safe_intervals = get_safe_interval(cfg, obstacles)
+
+        for each_SI in cfg_safe_intervals:
+        	if each_SI[0] > end_t or each_SI[1] < start_t:
+        		continue
+        	# earliest arrival time at cfg during interval i with no collisions
+
 
 
 # safe interval A start search
@@ -347,11 +305,24 @@ def a_star_safe_interval(my_map, start_loc, goal_loc, h_values, agent, obstacles
     if len(obstacles) > 0:
         max_time = max(len(i) for i in obstacles)
 
-    root_safe_interval = 
-    root = {'loc': start_loc, 'g_val': 0, 'h_val': h_value, 'parent': None, 'timestep': 0, 'safe_interval':}
+    # note root only choose the first interval of all save intervals
+    root_safe_interval = get_safe_interval(start_loc, obstacles)[0]
+    root = {'loc': start_loc, 'g_val': 0, 'h_val': h_value, 'parent': None, 'timestep': 0, 'safe_interval': root_safe_interval}
     push_node(open_list, root)
-    closed_list[(root['loc'], 0)] = root
+    closed_list[(root['loc'], root_safe_interval)] = root
 
+    # add time limit to avoid infinite loop
+    time_limit = set_time_limit(my_map)
+
+    while len(open_list) > 0 and time_limit > 0:
+    	curr = pop_node(open_list)
+
+    	# find solution
+    	if curr['loc'] == goal_loc and curr['timestep'] >= max_time:
+    		return get_path(curr)
+
+    	# expand curr node, get all successors
+    	successors = get_successors(curr, my_map, obstacles)
 
 
 
