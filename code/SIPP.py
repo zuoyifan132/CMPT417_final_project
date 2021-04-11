@@ -1,4 +1,5 @@
 import heapq
+from pathlib import Path
 
 def move(loc, dir):
     directions = [(0, -1), (1, 0), (0, 1), (-1, 0)]     # add wait direction
@@ -44,47 +45,7 @@ def compute_heuristics(my_map, goal):
     h_values = dict()
     for loc, node in closed_list.items():
         h_values[loc] = node['cost']
-    return h_values
-
-
-def build_constraint_table(constraints, agent):
-    ##############################
-    # Task 1.2/1.3: Return a table that contains the list of constraints of
-    #               the given agent for each time step. The table can be used
-    #               for a more efficient constraint violation check in the 
-    #               is_constrained function.
-
-    constraint_table = dict()
-    temp_constraints = []
-
-    # deep copy constraints
-    for constraint in constraints:
-        temp_constraints.append(constraint)
-
-    # expand positive constraints to negative constraints
-    for constraint in temp_constraints:
-        if constraint['positive'] == 1 and constraint['agent'] != agent:
-            # vertex constraint:
-            if len(constraint['loc']) == 1:
-                temp_constraints.append({'agent':agent, 'loc':constraint['loc'], 'timestep':constraint['timestep'],
-                                     'positive':0})
-            # edge constraint:
-            else:
-                temp_constraints.append({'agent':agent, 'loc':[constraint['loc'][1], constraint['loc'][0]], 
-                                        'timestep':constraint['timestep'], 'positive':0})
-
-    for constraint in temp_constraints:
-        # the constraint belong to the agent if the constraint is specific for 
-        if constraint['agent'] == agent:
-            time_step = -1
-            if type(constraint['timestep']) == type(1):
-                time_step = constraint['timestep']
-            # new time step
-            if time_step not in constraint_table.keys():
-                constraint_table[time_step] = []
-            constraint_table[time_step].append(constraint)
-
-    return constraint_table          
+    return h_values    
 
 
 def get_location(path, time):
@@ -102,64 +63,23 @@ def get_path(goal_node):
     path = []
     curr = goal_node
     while curr is not None:
-        path.append(curr['loc'])
-        curr = curr['parent']
+    	for i in range(curr['wait_time']+1):
+    		path.append(curr['loc'])
+    	curr = curr['parent']
     path.reverse()
     return path
 
 
-def is_constrained(curr_loc, next_loc, next_time, constraint_table):
-    ##############################
-    # Task 1.2/1.3: Check if a move from curr_loc to next_loc at time step next_time violates
-    #               any given constraint. For efficiency the constraints are indexed in a constraint_table
-    #               by time step, see build_constraint_table.
-
-    if next_time in constraint_table.keys():
-        for same_time_constraint in constraint_table[next_time]:
-            # check vertex constraint
-            if len(same_time_constraint['loc']) == 1:
-                # check negative constraint
-                if same_time_constraint['positive'] == 0:
-                    if same_time_constraint['loc'][0] == next_loc:
-                        return False
-                # check positive constraint
-                else:
-                    if same_time_constraint['loc'][0] == next_loc:
-                        continue
-                    else:
-                        return False
-            # check edge constraint
-            else:
-                # check negative constraint
-                if same_time_constraint['positive'] == 0:
-                    if same_time_constraint['loc'][0] == curr_loc and same_time_constraint['loc'][1] == next_loc:
-                        return False
-                # check positive constraint      
-                else:
-                    if same_time_constraint['loc'][0] == curr_loc and same_time_constraint['loc'][1] == next_loc:
-                        continue
-                    else:
-                        return False
-
-    # prohibit for all future time, it's only possible to be vertex constraint 
-    if (-1) in constraint_table.keys():
-        for same_time_constraint in constraint_table[-1]:
-            if same_time_constraint['loc'][0] == next_loc and same_time_constraint['timestep'][1] <= next_time:
-                return False
-
-    return True
-
-
 def push_node(open_list, node):
-	#print("generate node:")
-	#print(node)
+	print("generate node:")
+	print(node)
 	heapq.heappush(open_list, (node['g_val'] + node['h_val'], node['h_val'], node['loc'], node))
 
 
 def pop_node(open_list):
 	_, _, _, curr = heapq.heappop(open_list)
-	#print("expand node:")
-	#print(curr)
+	print("expand node:")
+	print(curr)
 	return curr
 
 
@@ -225,6 +145,14 @@ def combine_intervals(all_intervals):
 # calculate safe interval
 def get_safe_interval(cfg, timestep, obstacles):
     each_safe_interval = []
+
+    # no obstacles will hit this place return interval current time to infinite
+    counter = 0
+    for path in obstacles:
+    	if cfg in path:
+    		counter += 1
+    if counter == 0:
+    	return [(timestep, -1)]
 
     for path in obstacles:
         index = [] 		# list of index of obstacles that hits the cfg
@@ -326,18 +254,21 @@ def get_successors(curr, my_map, h_values, obstacles):
 
 		for each_SI in cfg_safe_intervals:
 			if (each_SI[0] > end_t and end_t != -1) or (each_SI[1] < start_t and each_SI[1] != -1):
-				if curr['loc'] == (4,5) and curr['safe_interval'] == (4,-1):
-					print("pruned by 1 ", each_SI, start_t, end_t)
+				if cfg == (2,3):
+					print("a pruned by 1 ")
 				continue
         	# earliest arrival time at cfg during interval i with no collisions
 			t = find_earliest_arrival(each_SI, curr['timestep'], curr['loc'], cfg, obstacles)
 			if t is None:
-				if curr['loc'] == (4,5) and curr['safe_interval'] == (4,-1):
-					print("pruned by 2")
+				if cfg == (2,3):
+					print("b pruned by 2")
 				continue
 
+			if t > 1:
+				curr['wait_time'] += t - 1 
+
 			successor = {'loc': cfg, 'g_val': curr['g_val']+t, 'h_val': h_values[cfg], 'parent': curr, 
-			'timestep': curr['timestep']+t, 'safe_interval': each_SI}
+			'timestep': curr['timestep']+t, 'safe_interval': each_SI, 'wait_time': 0}
 
 			successors.append(successor)
 
@@ -357,14 +288,10 @@ def a_star_safe_interval(my_map, start_loc, goal_loc, h_values, obstacles):
 
     # initialize h value 
     h_value = h_values[start_loc]   
-    
-    max_time = 0
-    if len(obstacles) > 0:
-        max_time = max(len(i) for i in obstacles)
 
     # note root only choose the first interval of all save intervals
     root_safe_interval = get_safe_interval(start_loc, 0, obstacles)[0]
-    root = {'loc': start_loc, 'g_val': 0, 'h_val': h_value, 'parent': None, 'timestep': 0, 'safe_interval': root_safe_interval}
+    root = {'loc': start_loc, 'g_val': 0, 'h_val': h_value, 'parent': None, 'timestep': 0, 'safe_interval': root_safe_interval, 'wait_time': 0}
     push_node(open_list, root)
     closed_list[(root['loc'], root_safe_interval)] = root
 
@@ -374,8 +301,8 @@ def a_star_safe_interval(my_map, start_loc, goal_loc, h_values, obstacles):
     while len(open_list) > 0 and time_limit > 0:
     	curr = pop_node(open_list)
 
-    	# find solution
-    	if curr['loc'] == goal_loc and curr['timestep'] >= max_time:
+    	# find solution 
+    	if curr['loc'] == goal_loc and curr['safe_interval'][1] == -1:		# safe interval need to be -1 avoid obstacle hit agent after get goal
     		print("find solution:")
     		print()
     		print(curr)
@@ -402,8 +329,7 @@ def a_star_safe_interval(my_map, start_loc, goal_loc, h_values, obstacles):
     return None
 
 
-
-
+'''
 my_map = [[1,1,1,1,0,1,1,1,1],
 		  [1,1,1,1,0,1,1,1,1],
 		  [1,1,1,1,0,1,1,1,1],
@@ -419,6 +345,51 @@ obstacles = [[(8,4), (7,4), (6,4), (5,4), (4,4), (3,4), (2,4), (1,4)], [(4,6), (
 print(a_star_safe_interval(my_map, curr['loc'], (8,4), h_values, obstacles))
 
 #expand node:{'loc': (2, 4), 'g_val': 1, 'h_val': 6, 'parent': {'loc': (3, 4), 'g_val': 0, 'h_val': 5, 'parent': None, 'timestep': 0, 'safe_interval': (0, 4)}, 'timestep': 1, 'safe_interval': (1, 5)}
+'''
+
+def import_mapf_instance(filename):
+    f = Path(filename)
+    if not f.is_file():
+        raise BaseException(filename + " does not exist.")
+    f = open(filename, 'r')
+    # first line: #rows #columns
+    line = f.readline()
+    rows, columns = [int(x) for x in line.split(' ')]
+    rows = int(rows)
+    columns = int(columns)
+    # #rows lines with the map
+    my_map = []
+    for r in range(rows):
+        line = f.readline()
+        my_map.append([])
+        for cell in line:
+            if cell == '@':
+                my_map[-1].append(True)
+            elif cell == '.':
+                my_map[-1].append(False)
+    # #agents
+    line = f.readline()
+    num_agents = int(line)
+    # #agents lines with the start/goal positions
+    starts = []
+    goals = []
+    for a in range(num_agents):
+        line = f.readline()
+        sx, sy, gx, gy = [int(x) for x in line.split(' ')]
+        starts.append((sx, sy))
+        goals.append((gx, gy))
+    f.close()
+    return my_map, starts, goals
+
+
+
+my_map, starts, goals = import_mapf_instance("instances/exp2_2.txt")
+print(starts)
+print(goals)
+
+h_values = compute_heuristics(my_map, goals[0])
+obstacles = [[(1,1), (1,2), (1,3), (1,4), (1,5)]]
+print(a_star_safe_interval(my_map, starts[0], goals[0], h_values, obstacles))
 
 
 
