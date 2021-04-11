@@ -43,7 +43,8 @@ def combine_intervals(all_intervals):
 	if len(all_intervals) >= 2:
 		result = combine_two(all_intervals[0], all_intervals[1])
 	else:
-		return all_intervals[0]
+		if len(all_intervals) > 0:
+			return all_intervals[0]
 
 	# combine each interval with the result
 	for i in range(2, len(all_intervals)):
@@ -53,7 +54,7 @@ def combine_intervals(all_intervals):
 
 
 # calculate safe interval
-def get_safe_interval(cfg, obstacles):
+def get_safe_interval(cfg, timestep, obstacles):
     each_safe_interval = []
 
     for path in obstacles:
@@ -64,14 +65,23 @@ def get_safe_interval(cfg, obstacles):
                 index.append(i)
 
         for i in range(len(index)):
-            if index[i] != 0 and i == 0:
-                temp.append((0, index[i]-1))
+        	# first meet point not no start loc, and time not past
+            if index[i] != 0 and i == 0 and index[0] > timestep:
+                temp.append((timestep, index[i]-1))
 
+            # not the first meet point and obstacle not stay in meet point
             if i != 0 and index[i-1]+1 != index[i]:
-            	temp.append((index[i-1]+1, index[i]-1))
+            	# time not past 
+            	if index[i-1]+1 <= timestep <= index[i]-1:
+            		temp.append((timestep, index[i]-1))
+            	elif timestep < index[i]:
+            		temp.append((index[i-1]+1, index[i]-1))
 
             if i == len(index)-1 and index[i] != len(path)-1:
-                temp.append((index[i]+1, -1))
+            	if timestep > index[i]+1:
+            		temp.append((timestep, -1))
+            	else:
+            		temp.append((index[i]+1, -1))
 
         if len(index) != 0:
         	each_safe_interval.append(temp)
@@ -83,29 +93,24 @@ def get_safe_interval(cfg, obstacles):
 
 
 #all_intervals = [[(0,3), (8,-1)], [(0,0), (4,9), (12,-1)], [(1,7), (9,9), (13,15), (17,-1)]]
+#cfg = (0,4)
+#timestep = 111
+#obstacles = [[(0,0), (0,1), (0,2), (0,3), (0,4), (0,5), (0,6), (0,5), (0,4), (0,3), (0,2), (0,1), (0,0)]]
+#print(get_safe_interval(cfg, timestep, obstacles))
 
 
-
-#cfg = (4,4)
+#cfg = (2,4)
 #cfg = (0,4)
 #obstacles = [[(0,0), (0,1), (0,2), (0,3), (0,4), (0,5), (0,6), (0,5), (0,4), (0,3)]]		# answer (0,3), (5,7), (9,-1)
 #obstacles = [[(0,4), (0,5), (0,6), (0,5), (0,4), (0,3)]]			# answer (1,3), (5,-1)
-#obstacles = [[(0,0), (0,1), (0,2), (0,3), (0,4), (0,4), (0,4), (0,5), (0,6)]]		# answer (0,3), (7,-1)
+#obstacles = [[(0,0), (0,1), (0,2), (0,3), (0,4), (0,4), (0,4), (0,5), (0,6), (0,5), (0,4)]]		# answer (0,3), (7,-1)
 #obstacles = [[(0,0), (0,1), (0,2), (0,3), (0,4), (0,5), (0,4)]]
 #obstacles = [[(0,4), (0,4), (0,5), (0,4), (0,4), (0,3), (0,4)]]		# answer (2, 2), (5, 5)
 #obstacles = [[(8,4), (7,4), (6,4), (5,4), (4,4), (3,4), (2,4), (1,4)], [(4,6), (4,5), (4,4), (4,3), (4,2)]]
-#print(get_safe_interval(cfg, obstacles))
+#print(get_safe_interval(cfg, 0, obstacles))
 
 #----------------------------- 　find earileast time ------------------------------#
 '''
-def get_location(path, time):
-    if time < 0:
-        return path[0]
-    elif time < len(path):
-        return path[time]
-    else:
-        return path[-1]  # wait at the goal location
-
 
 def detect_collision(path1, path2):
 
@@ -175,6 +180,49 @@ def find_earliest_arrival(safe_interval, curr_time, curr_loc, next_loc, obstacle
 
 '''
 #--------------------------------------------------------------------------------------#
+
+def get_location(path, time):
+    if time < 0:
+        return path[0]
+    elif time < len(path):
+        return path[time]
+    else:
+        return path[-1]  # wait at the goal location
+
+def find_earliest_arrival(safe_interval, curr_time, curr_loc, next_loc, obstacles):
+	# the safe interval is already past
+	if curr_time > safe_interval[1] and safe_interval[1] != -1:
+		return None
+	# need to wait then move
+	wait_time = safe_interval[0] - curr_time - 1
+	agent_path = [curr_loc]
+	for j in range(wait_time):
+		agent_path.append(curr_loc)
+	agent_path.append(next_loc)
+
+	for each_obstacle in obstacles:
+		temp1 , temp2 = agent_path[:], each_obstacle[curr_time:]
+		l1, l2 = len(each_obstacle), len(agent_path)
+
+		'''if l1 > l2:
+			for i in range(l1-l2):
+				temp2.append(temp2[l2-1])
+		else:
+			for i in range(l2-l1):
+				temp1.append(temp1[l1-1])'''
+
+		print(temp1, temp2)
+		# detect edge collision
+		for i in range(max(l1, l2)):
+			if i < max(l1, l2)-1:
+				if get_location(temp1, i) == get_location(temp2, i+1) and get_location(temp2, i) == get_location(temp1, i+1):
+					#print("edge collision: ", get_location(temp1, i), get_location(temp1, i+1), get_location(temp2, i), get_location(temp2, i+1))
+					return None
+
+	return len(agent_path)-1
+
+print(find_earliest_arrival([3,3], 0, (3,4), (4,4), [[(8,4), (7,4), (6,4), (5,4), (4,4), (3,4), (2,4), (1,4)], [(4,6), (4,5), (4,4), (4,3), (4,2)]]))
+#print(find_earliest_arrival((2, -1), 1, (4, 4), (4, 5), [[(8, 4), (7, 4), (6, 4), (5, 4), (4, 4), (3, 4), (2, 4), (1, 4)], [(4, 6), (4, 5), (4, 4), (4, 3), (4, 2)]]))
 
 '''
 def a_star(my_map, start_loc, goal_loc, h_values, agent, constraints):
