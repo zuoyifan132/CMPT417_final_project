@@ -186,7 +186,7 @@ class CBSSolver(object):
             curr = self.pop_node()     # firstly sorted with cost then sorted with #constraints 
             # no collision return solution
             if len(curr['collisions']) == 0:
-                self.print_results(curr)
+                self.print_results(curr) 
                 return curr['paths']
 
             first_collision = curr['collisions'][0]
