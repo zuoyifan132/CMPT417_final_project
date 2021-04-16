@@ -1,7 +1,7 @@
 import time as timer
 import heapq
 import random
-from SIPP import compute_heuristics, a_star, get_location, get_sum_of_cost
+from SIPP import compute_heuristics, a_star_safe_interval, get_location, get_sum_of_cost
 
 
 def detect_collision(path1, path2):
@@ -163,7 +163,7 @@ class CBSSolver(object):
                 'collisions': []}
 
         for i in range(self.num_of_agents):  # Find initial path for each agent
-            path = a_star(self.my_map, self.starts[i], self.goals[i], self.heuristics[i],
+            path = a_star_safe_interval(self.my_map, self.starts[i], self.goals[i], self.heuristics[i],
                           i, root['constraints'])
             if path is None:
                 raise BaseException('No solutions')
@@ -203,7 +203,7 @@ class CBSSolver(object):
                 constrainted_agent = constraint['agent']
                 child = {'cost':0, 'constraints':child_constarints, 'paths':child_paths, 'collisions':[]}
 
-                path = a_star(self.my_map, self.starts[constrainted_agent], self.goals[constrainted_agent], 
+                path = a_star_safe_interval(self.my_map, self.starts[constrainted_agent], self.goals[constrainted_agent], 
                               self.heuristics[constrainted_agent], constrainted_agent, child['constraints'])
                 path = eliminate_duplicates(path)
                 if path is not None:
