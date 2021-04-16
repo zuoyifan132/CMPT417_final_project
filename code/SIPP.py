@@ -77,7 +77,7 @@ def get_path(goal_node):
 def push_node(open_list, node):
 	#print("generate node:")
 	#print(node)
-	heapq.heappush(open_list, (node['g_val'] + node['h_val'], node['h_val'], node['loc'], random.randint(0,100), node))
+	heapq.heappush(open_list, (node['g_val'] + node['h_val'], node['h_val'], node['loc'], node['safe_interval'], node))
 
 
 def pop_node(open_list):
@@ -296,6 +296,7 @@ def a_star_safe_interval(my_map, start_loc, goal_loc, h_values, agent, constrain
     			existing_node = closed_list[(successor['loc'], successor['safe_interval'])]
     			if compare_nodes(successor, existing_node):
     				closed_list[(successor['loc'], successor['safe_interval'])] = successor
+    				print("changed")
     				push_node(open_list, successor)
 
     		# expand the child if it isn't in closed list
@@ -361,16 +362,11 @@ def import_mapf_instance(filename):
     return my_map, starts, goals
 
 
-my_map, starts, goals = import_mapf_instance("instances/test_1.txt")
+my_map, starts, goals = import_mapf_instance("instances/test_47.txt")
 
-h_values = compute_heuristics(my_map, goals[1])
-constraints = [{'agent': 1, 'loc': [(1, 1)], 'timestep': 11, 'positive': 0}, 
-{'agent': 1, 'loc': [(3, 4), (3, 3)], 'timestep': 7, 'positive': 0}]
-print(a_star_safe_interval(my_map, starts[1], goals[1], h_values, 1, constraints))
-
-
-
-
+h_values = compute_heuristics(my_map, goals[6])
+constraints = [{'agent': 0, 'loc': [(4, 3)], 'timestep': 5, 'positive': 0}, {'agent': 3, 'loc': [(5, 3), (5, 4)], 'timestep': 6, 'positive': 0}, {'agent': 4, 'loc': [(3, 4)], 'timestep': 3, 'positive': 0}, {'agent': 4, 'loc': [(4, 4), (3, 4)], 'timestep': 4, 'positive': 0}, {'agent': 4, 'loc': [(4, 4)], 'timestep': 4, 'positive': 0}, {'agent': 2, 'loc': [(4, 3)], 'timestep': 5, 'positive': 0}, {'agent': 2, 'loc': [(3, 3), (4, 3)], 'timestep': 6, 'positive': 0}, {'agent': 2, 'loc': [(1, 4)], 'timestep': 1, 'positive': 0}, {'agent': 1, 'loc': [(5, 3), (4, 3)], 'timestep': 5, 'positive': 0}, {'agent': 2, 'loc': [(4, 3)], 'timestep': 6, 'positive': 0}, {'agent': 2, 'loc': [(3, 3), (4, 3)], 'timestep': 7, 'positive': 0}, {'agent': 5, 'loc': [(5, 3)], 'timestep': 5, 'positive': 0}, {'agent': 5, 'loc': [(5, 3)], 'timestep': 6, 'positive': 0}, {'agent': 5, 'loc': [(4, 3)], 'timestep': 6, 'positive': 0}, {'agent': 1, 'loc': [(5, 1)], 'timestep': 2, 'positive': 0}, {'agent': 2, 'loc': [(4, 4)], 'timestep': 5, 'positive': 0}, {'agent': 4, 'loc': [(3, 3)], 'timestep': 4, 'positive': 0}, {'agent': 4, 'loc': [(3, 4)], 'timestep': 5, 'positive': 0}]
+print(a_star_safe_interval(my_map, starts[6], goals[6], h_values, 6, constraints))
 
 
 
